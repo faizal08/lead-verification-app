@@ -236,7 +236,6 @@ if uploaded_file is not None:
                     'organization website': domain,
                     'location': str(row.get('Location', '')).strip(),
                     'industry': str(row.get('Industry', '')).strip(),
-                    'seniority': str(row.get('Seniority', '')).strip(),
                     'email': found_email
                 }
                 verified_leads.append(lead_data)
