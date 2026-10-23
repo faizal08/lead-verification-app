@@ -42,43 +42,48 @@ if os.path.exists(bg_file):
     '''
     st.markdown(page_bg_img, unsafe_allow_html=True)
 
-# Custom High-End Modern CSS with Fixed Top Navbar
+# Custom High-End Modern CSS
 st.markdown("""
     <style>
-    /* Adjust main container padding to account for fixed navbar */
-    .block-container {
-        padding-top: 5.5rem !important;
-        padding-bottom: 3rem !important;
-        max-width: 1200px !important;
+    /* Hide default Streamlit top header bar/menu to prevent overlapping */
+    header[data-testid="stHeader"] {
+        background: transparent !important;
     }
 
-    /* Fixed Top Navbar locked to the absolute top */
+    /* Adjust main container padding */
+    .block-container {
+        padding-top: 1.5rem !important;
+        padding-bottom: 3rem !important;
+        max-width: 1400px !important;
+    }
+
+    /* Top-Left EIT Header Bar */
     .eit-top-header {
-        position: fixed;
-        top: 0;
-        left: 0;
+        position: relative;
         width: 100%;
-        z-index: 99999;
         display: flex;
         align-items: center;
         justify-content: flex-start;
         gap: 15px;
-        background: rgba(10, 15, 29, 0.95);
+        background: rgba(10, 15, 29, 0.92);
         backdrop-filter: blur(14px);
         -webkit-backdrop-filter: blur(14px);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-        padding: 10px 30px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 12px;
+        padding: 12px 25px;
+        margin-bottom: 25px;
         box-shadow: 0 4px 25px 0 rgba(0, 0, 0, 0.6);
+        z-index: 9999;
     }
     .eit-logo-group {
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 5px;
     }
     .eit-letter {
         font-size: 18px;
         font-weight: 900;
-        padding: 2px 7px;
+        padding: 3px 9px;
         border-radius: 4px;
         color: white;
     }
@@ -99,7 +104,7 @@ st.markdown("""
         letter-spacing: 0.3px;
     }
 
-    /* Sub-engine badge */
+    /* Engine Badge Styles */
     .engine-badge {
         display: inline-flex;
         align-items: center;
@@ -115,10 +120,26 @@ st.markdown("""
         box-shadow: 0 0 15px rgba(56, 189, 248, 0.15);
     }
 
+    .engine-badge-sub {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(15, 23, 42, 0.75);
+        border: 1px solid rgba(56, 189, 248, 0.4);
+        padding: 8px 18px;
+        border-radius: 25px;
+        color: #f8fafc;
+        font-size: 14px;
+        font-weight: 600;
+        margin-top: 10px;
+        box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+    }
+
     /* Centered Hero Title Section */
     .hero-container {
         text-align: center;
-        margin: 10px 0 35px 0;
+        margin: 10px 0 30px 0;
     }
     .hero-title {
         font-size: 44px !important;
@@ -128,46 +149,48 @@ st.markdown("""
         margin-bottom: 8px !important;
         text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
     }
-    .hero-subtitle {
-        font-size: 16px !important;
-        font-weight: 700 !important;
-        background: linear-gradient(90deg, #38bdf8, #f8fafc, #818cf8);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9);
-        letter-spacing: 0.3px;
-        margin: 0 !important;
-    }
 
-    /* Premium Glassmorphism Dropzone Container */
-    .uploader-card {
-        background: rgba(15, 23, 42, 0.55);
-        backdrop-filter: blur(18px);
-        -webkit-backdrop-filter: blur(18px);
-        border: 1px dashed rgba(148, 163, 184, 0.4);
-        border-radius: 24px;
-        padding: 35px;
-        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-        margin-bottom: 30px;
-    }
-
-    /* Streamlit File Uploader Custom Styling */
+    /* MASSIVE & Fully Transparent File Uploader Dropzone */
     [data-testid="stFileUploader"] {
-        background: rgba(15, 23, 42, 0.4) !important;
-        border: 2px dashed rgba(56, 189, 248, 0.5) !important;
-        border-radius: 16px !important;
-        padding: 20px !important;
+        background: rgba(0, 0, 0, 0.0) !important;
+        backdrop-filter: blur(4px) !important;
+        -webkit-backdrop-filter: blur(4px) !important;
+        border: 2px dashed rgba(56, 189, 248, 0.8) !important;
+        border-radius: 35px !important;
+        padding: 70px 40px !important;
+        max-width: 950px !important;
+        width: 80% !important;
+        margin: 0 auto 35px auto !important;
         transition: all 0.3s ease !important;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4) !important;
     }
+    
+    /* Force absolute transparency on all inner Streamlit uploader elements */
+    [data-testid="stFileUploader"] section, 
+    [data-testid="stFileUploader"] div, 
+    [data-testid="stFileUploadDropzone"],
+    [data-testid="stFileUploader"] > div {
+        background: transparent !important;
+        background-color: transparent !important;
+        text-align: center !important;
+    }
+
     [data-testid="stFileUploader"]:hover {
         border-color: #38bdf8 !important;
-        background: rgba(15, 23, 42, 0.7) !important;
-        box-shadow: 0 0 30px rgba(56, 189, 248, 0.3);
+        background: rgba(56, 189, 248, 0.05) !important;
+        box-shadow: 0 0 40px rgba(56, 189, 248, 0.3) !important;
     }
+    
+    /* Center and style the dropzone instruction text */
     [data-testid="stFileUploader"] label {
         color: #f8fafc !important;
-        font-size: 18px !important;
-        font-weight: 600 !important;
+        font-size: 23px !important;
+        font-weight: 700 !important;
+        text-align: center !important;
+        display: block !important;
+        width: 100% !important;
+        margin-bottom: 20px !important;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
     }
 
     /* Action Button Styling */
@@ -285,7 +308,7 @@ def create_formatted_excel(verified_leads, output_path):
         
     wb.save(output_path)
 
-# --- Fixed Top Navbar Bar ---
+# --- Top-Left EIT Header Bar ---
 st.markdown("""
     <div class="eit-top-header">
         <div class="eit-logo-group">
@@ -305,14 +328,14 @@ st.markdown("""
             ⚡ Standard B2B Lead Enrichment Engine
         </div>
         <div class="hero-title">Lead Verification App</div>
-        <p class="hero-subtitle">Automated B2B Email Permutation & Real-Time SMTP Validation Engine</p>
+        <div class="engine-badge-sub">
+            ⚡ Automated B2B Email Permutation & Real-Time SMTP Validation Engine
+        </div>
     </div>
 """, unsafe_allow_html=True)
 
-# --- Modern Glassmorphism Dropzone Container ---
-st.markdown('<div class="uploader-card">', unsafe_allow_html=True)
+# --- Massive & Fully Transparent File Uploader Dropzone ---
 uploaded_file = st.file_uploader("📂 Drag & Drop your NavWise CSV dataset here", type=["csv"])
-st.markdown('</div>', unsafe_allow_html=True)
 
 if uploaded_file is not None:
     content = uploaded_file.getvalue().decode('utf-8').splitlines()
