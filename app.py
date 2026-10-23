@@ -3,6 +3,7 @@ import random
 import time
 import csv
 import datetime
+import base64
 import dns.resolver
 import smtplib
 from urllib.parse import urlparse
@@ -18,36 +19,171 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS for custom styling (EIT Branding & Modern UI)
+# Function to convert image file to base64 string
+def get_base64_of_bin_file(bin_file):
+    with open(bin_file, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+# Set background wallpaper if file exists
+bg_file = "email_verification_wallpaper.png"
+if os.path.exists(bg_file):
+    bin_str = get_base64_of_bin_file(bg_file)
+    page_bg_img = f'''
+    <style>
+    .stApp {{
+        background-image: url("data:image/png;base64,{bin_str}");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }}
+    </style>
+    '''
+    st.markdown(page_bg_img, unsafe_allow_html=True)
+
+# Custom High-End Modern CSS with Fixed Top Navbar
 st.markdown("""
     <style>
-    .main-header {
-        background-color: #0d1b2a;
-        padding: 20px;
-        border-radius: 10px;
-        color: white;
+    /* Adjust main container padding to account for fixed navbar */
+    .block-container {
+        padding-top: 5.5rem !important;
+        padding-bottom: 3rem !important;
+        max-width: 1200px !important;
+    }
+
+    /* Fixed Top Navbar locked to the absolute top */
+    .eit-top-header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        z-index: 99999;
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        margin-bottom: 25px;
+        justify-content: flex-start;
+        gap: 15px;
+        background: rgba(10, 15, 29, 0.95);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        padding: 10px 30px;
+        box-shadow: 0 4px 25px 0 rgba(0, 0, 0, 0.6);
     }
-    .header-title {
-        font-size: 28px;
-        font-weight: bold;
-        color: #ffffff;
-        margin: 0;
+    .eit-logo-group {
+        display: flex;
+        align-items: center;
+        gap: 4px;
     }
-    .header-sub {
+    .eit-letter {
+        font-size: 18px;
+        font-weight: 900;
+        padding: 2px 7px;
+        border-radius: 4px;
+        color: white;
+    }
+    .eit-letter-e { background-color: #0052cc; }
+    .eit-letter-i { background-color: #d92525; }
+    .eit-letter-t { background-color: #0b192c; border: 1px solid rgba(255,255,255,0.2); }
+    
+    .eit-divider {
+        width: 1px;
+        height: 22px;
+        background-color: rgba(255, 255, 255, 0.2);
+        margin: 0 6px;
+    }
+    .eit-tagline {
+        color: #e2e8f0;
         font-size: 14px;
-        color: #e0e1dd;
+        font-weight: 500;
+        letter-spacing: 0.3px;
     }
-    .status-card {
-        background-color: #1b263b;
-        padding: 15px;
-        border-radius: 8px;
-        color: #e0e1dd;
-        font-family: monospace;
-        margin-top: 15px;
+
+    /* Sub-engine badge */
+    .engine-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(15, 23, 42, 0.75);
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        padding: 6px 14px;
+        border-radius: 20px;
+        color: #38bdf8;
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 12px;
+        box-shadow: 0 0 15px rgba(56, 189, 248, 0.15);
+    }
+
+    /* Centered Hero Title Section */
+    .hero-container {
+        text-align: center;
+        margin: 10px 0 35px 0;
+    }
+    .hero-title {
+        font-size: 44px !important;
+        font-weight: 900 !important;
+        color: #ffffff !important;
+        letter-spacing: -0.5px;
+        margin-bottom: 8px !important;
+        text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+    }
+    .hero-subtitle {
+        font-size: 16px !important;
+        font-weight: 700 !important;
+        background: linear-gradient(90deg, #38bdf8, #f8fafc, #818cf8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9);
+        letter-spacing: 0.3px;
+        margin: 0 !important;
+    }
+
+    /* Premium Glassmorphism Dropzone Container */
+    .uploader-card {
+        background: rgba(15, 23, 42, 0.55);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        border: 1px dashed rgba(148, 163, 184, 0.4);
+        border-radius: 24px;
+        padding: 35px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+        margin-bottom: 30px;
+    }
+
+    /* Streamlit File Uploader Custom Styling */
+    [data-testid="stFileUploader"] {
+        background: rgba(15, 23, 42, 0.4) !important;
+        border: 2px dashed rgba(56, 189, 248, 0.5) !important;
+        border-radius: 16px !important;
+        padding: 20px !important;
+        transition: all 0.3s ease !important;
+    }
+    [data-testid="stFileUploader"]:hover {
+        border-color: #38bdf8 !important;
+        background: rgba(15, 23, 42, 0.7) !important;
+        box-shadow: 0 0 30px rgba(56, 189, 248, 0.3);
+    }
+    [data-testid="stFileUploader"] label {
+        color: #f8fafc !important;
+        font-size: 18px !important;
+        font-weight: 600 !important;
+    }
+
+    /* Action Button Styling */
+    .stButton>button {
+        border-radius: 12px !important;
+        font-size: 16px !important;
+        font-weight: 700 !important;
+        padding: 12px 24px !important;
+        background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4) !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.6) !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -149,37 +285,43 @@ def create_formatted_excel(verified_leads, output_path):
         
     wb.save(output_path)
 
-# --- Header UI ---
-col1, col2 = st.columns([1, 4])
-
-with col1:
-    # SVG styled logo matching EIT design
-    st.markdown("""
-        <div style="background:#0b192c; padding:10px; border-radius:8px; text-align:center;">
-            <span style="background:#0052cc; color:white; font-weight:bold; font-size:24px; padding:2px 8px;">E</span><span style="background:#d92525; color:white; font-weight:bold; font-size:24px; padding:2px 8px;">I</span><span style="background:#0b192c; color:white; font-weight:bold; font-size:24px; padding:2px 8px;">T</span>
-            <div style="color:#ffffff; font-size:10px; margin-top:4px;">Transforming Businesses Through IT</div>
+# --- Fixed Top Navbar Bar ---
+st.markdown("""
+    <div class="eit-top-header">
+        <div class="eit-logo-group">
+            <span class="eit-letter eit-letter-e">E</span>
+            <span class="eit-letter eit-letter-i">I</span>
+            <span class="eit-letter eit-letter-t">T</span>
         </div>
-    """, unsafe_allow_html=True)
+        <div class="eit-divider"></div>
+        <div class="eit-tagline">Transforming Businesses Through IT</div>
+    </div>
+""", unsafe_allow_html=True)
 
-with col2:
-    st.title("Lead Verification App")
-    st.caption("B2B Email Permutation & SMTP Validation Platform")
+# --- Centered Hero Section ---
+st.markdown("""
+    <div class="hero-container">
+        <div class="engine-badge">
+            ⚡ Standard B2B Lead Enrichment Engine
+        </div>
+        <div class="hero-title">Lead Verification App</div>
+        <p class="hero-subtitle">Automated B2B Email Permutation & Real-Time SMTP Validation Engine</p>
+    </div>
+""", unsafe_allow_html=True)
 
-st.divider()
-
-# --- Drag and Drop File Upload ---
-uploaded_file = st.file_uploader("Drag and drop your NavWise CSV file here", type=["csv"])
+# --- Modern Glassmorphism Dropzone Container ---
+st.markdown('<div class="uploader-card">', unsafe_allow_html=True)
+uploaded_file = st.file_uploader("📂 Drag & Drop your NavWise CSV dataset here", type=["csv"])
+st.markdown('</div>', unsafe_allow_html=True)
 
 if uploaded_file is not None:
-    # Parse CSV from memory
     content = uploaded_file.getvalue().decode('utf-8').splitlines()
     reader = list(csv.DictReader(content))
     total_leads = len(reader)
     
     st.success(f"File loaded successfully! Found **{total_leads}** leads to process.")
     
-    if st.button("🚀 Start Verification Process", type="primary"):
-        # UI Elements for progress tracking
+    if st.button("🚀 Start Verification Process", type="primary", use_container_width=True):
         progress_bar = st.progress(0)
         status_text = st.empty()
         time_text = st.empty()
@@ -195,7 +337,6 @@ if uploaded_file is not None:
             raw_website = row.get('Organisation Website', '')
             domain = extract_domain(raw_website)
             
-            # Estimate remaining time
             elapsed_time = time.time() - start_time
             if idx > 0:
                 avg_time_per_lead = elapsed_time / idx
@@ -241,7 +382,6 @@ if uploaded_file is not None:
                 verified_leads.append(lead_data)
                 sl_no += 1
                 
-            # Update Progress Bar
             progress_bar.progress((idx + 1) / total_leads)
             time.sleep(random.randint(2, 5))
 
@@ -250,23 +390,22 @@ if uploaded_file is not None:
         progress_bar.progress(1.0)
         
         if verified_leads:
-            # Generate filename with timestamp: verified_lead_{timestamp}.xlsx
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             output_filename = f"verified_lead_{timestamp}.xlsx"
             
             create_formatted_excel(verified_leads, output_filename)
             
             st.balloons()
-            st.success(f" Verification Complete! Found {len(verified_leads)} valid leads.")
+            st.success(f"🎉 Verification Complete! Successfully verified {len(verified_leads)} valid leads.")
             
-            # Download Button
             with open(output_filename, "rb") as file:
                 st.download_button(
                     label="📥 Download Verified Leads Excel",
                     data=file,
                     file_name=output_filename,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    type="primary"
+                    type="primary",
+                    use_container_width=True
                 )
         else:
             st.warning("No valid emails could be verified from the uploaded dataset.")
