@@ -4,6 +4,8 @@ import time
 import csv
 import datetime
 import base64
+import re
+import requests
 import dns.resolver
 import smtplib
 from urllib.parse import urlparse
@@ -267,6 +269,55 @@ def verify_smtp_email(email, sender_email="verify@gmail.com"):
     except Exception:
         return "Failed/Blocked"
 
+def find_exposed_phone_number(first_name, last_name, company_name, domain=""):
+    """
+    Searches Google for personal direct phone lines using targeted queries
+    and filters out generic company HQ/switchboard lines.
+    """
+    # Securely fetch credentials from Streamlit secrets
+    api_key = st.secrets.get("GOOGLE_API_KEY", "")
+    cx = st.secrets.get("SEARCH_ENGINE_ID", "")
+    
+    if not api_key or not cx:
+        return "Not Configured"
+
+    # ... rest of your search logic starts here ...
+
+    queries = [
+        f'"{first_name} {last_name}" "{company_name}" filetype:pdf (phone OR mobile)',
+        f'site:github.com "{first_name} {last_name}" (phone OR mobile OR "cell")',
+        f'"{first_name} {last_name}" "{company_name}" ("speaker" OR "press release") (phone OR contact)',
+        f'"{first_name} {last_name}" "{company_name}" (phone OR mobile OR contact)'  # <--- Broader general web search
+    ]
+    
+    for query in queries:
+        url = f"https://www.googleapis.com/customsearch/v1?q={query}&key={api_key}&cx={cx}"
+        try:
+            response = requests.get(url, timeout=5).json()
+            for item in response.get('items', []):
+                snippet = item.get('snippet', '')
+                snippet_lower = snippet.lower()
+                link = item.get('link', '').lower()
+                
+                # Filter out general company contact/HQ pages to avoid false switchboard numbers
+                if any(term in link for term in ['/contact', '/about', '/hq', '/support']):
+                    continue
+                
+                full_name = f"{first_name} {last_name}".lower()
+                company = str(company_name).lower()
+                
+                # Context safeguard: ensure snippet explicitly mentions target lead and company
+                if full_name in snippet_lower and (company in snippet_lower or domain.lower() in snippet_lower):
+                    matches = re.findall(r'(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}', snippet)
+                    valid_numbers = [m.strip() for m in matches if len(re.sub(r'\D', '', m)) >= 10]
+                    
+                    if valid_numbers:
+                        return valid_numbers[0]
+        except Exception:
+            continue
+            
+    return "Not Exposed"
+
 def create_formatted_excel(verified_leads, output_path):
     """Saves verified leads into a beautifully styled Excel sheet."""
     wb = openpyxl.Workbook()
@@ -359,6 +410,7 @@ if uploaded_file is not None:
             last_name = row.get('Last Name', '')
             raw_website = row.get('Organisation Website', '')
             domain = extract_domain(raw_website)
+            company_name = row.get('Organisation Name', '')
             
             elapsed_time = time.time() - start_time
             if idx > 0:
@@ -391,16 +443,21 @@ if uploaded_file is not None:
                 time.sleep(random.randint(3, 8))
                 
             if found_email:
+                status_text.markdown(f"📞 **Searching Phone for:** `{first_name} {last_name}`")
+                # Attempt to extract direct contact phone number
+                phone_number = find_exposed_phone_number(first_name, last_name, company_name, domain)
+                
                 lead_data = {
                     'slno': sl_no,
                     'firstname': str(first_name).strip(),
                     'lastname': str(last_name).strip(),
                     'current title': str(row.get('Current Title', '')).strip(),
-                    'organisation name': str(row.get('Organisation Name', '')).strip(),
+                    'organisation name': str(company_name).strip(),
                     'organization website': domain,
                     'location': str(row.get('Location', '')).strip(),
                     'industry': str(row.get('Industry', '')).strip(),
-                    'email': found_email
+                    'email': found_email,
+                    'phone': phone_number  # <--- Appends phone column to Excel output
                 }
                 verified_leads.append(lead_data)
                 sl_no += 1
