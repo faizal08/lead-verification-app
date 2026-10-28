@@ -12,7 +12,9 @@ from utils import (
     generate_permutations,
     verify_smtp_email,
     find_exposed_phone_number,
-    create_formatted_excel
+    create_formatted_excel,
+    check_and_update_daily_limit,
+    increment_usage_counter
 )
 
 # Page configuration
@@ -39,7 +41,7 @@ if os.path.exists(bg_file):
     '''
     st.markdown(page_bg_img, unsafe_allow_html=True)
 
-# Custom High-End Modern CSS
+# Custom High-End Modern CSS with Digital Time-Bomb Counter Styling
 st.markdown("""
     <style>
     /* Ensure top header allows clicks */
@@ -55,11 +57,11 @@ st.markdown("""
         max-width: 1400px !important;
     }
 
-    /* Fixed & Clickable NavWise Link positioned safely to the left of the Deploy button */
+    /* Fixed & Clickable NavWise Link positioned safely to the left of Deploy and Stop buttons */
     .navwise-top-link {
         position: fixed;
         top: 12px;
-        right: 180px; /* Moved further left to create clear spacing from Deploy */
+        right: 280px; /* Offset to clear Deploy and Stop buttons */
         background: linear-gradient(135deg, #0ea5e9, #0284c7);
         color: white !important;
         padding: 7px 16px;
@@ -176,6 +178,34 @@ st.markdown("""
         text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
     }
 
+    /* --- Time-Bomb / Digital LCD Counter Box Design --- */
+    [data-testid="stMetric"] {
+        background: rgba(5, 8, 20, 0.85) !important;
+        border: 2px solid #0ea5e9 !important;
+        border-radius: 12px !important;
+        padding: 15px 10px !important;
+        box-shadow: 0 0 25px rgba(14, 165, 233, 0.35), inset 0 0 15px rgba(14, 165, 233, 0.2) !important;
+        text-align: center !important;
+    }
+    
+    /* Counter Label */
+    [data-testid="stMetricLabel"] label, [data-testid="stMetricLabel"] div {
+        color: #38bdf8 !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 1px !important;
+    }
+
+    /* Counter Digits / Value (Time Bomb LCD Glow Look) */
+    [data-testid="stMetricValue"] {
+        color: #00ffcc !important;
+        font-family: 'Courier New', Courier, monospace !important;
+        font-size: 28px !important;
+        font-weight: 900 !important;
+        text-shadow: 0 0 10px rgba(0, 255, 204, 0.8), 0 0 20px rgba(0, 255, 204, 0.4) !important;
+    }
+
     /* Transparent File Uploader Dropzone */
     [data-testid="stFileUploader"] {
         background: rgba(0, 0, 0, 0.0) !important;
@@ -235,7 +265,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- Top NavWise Link (Spaced to the left of Deploy and Clickable) ---
+# --- Top NavWise Link ---
 st.markdown("""
     <a href="https://navwise.ai/navwise" target="_blank" class="navwise-top-link">
         🌐 NavWise Export
@@ -268,6 +298,19 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+# --- Check and Display Current Quota Status Dashboard Metric ---
+allowed_check, current_used, remaining_quota = check_and_update_daily_limit(0)
+
+# Display nice digital time-bomb counter style metrics row
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    metric_col1, metric_col2, metric_col3 = st.columns(3)
+    metric_col1.metric("Daily Quota Cap", "100")
+    metric_col2.metric("Used Today", f"{current_used}")
+    metric_col3.metric("Remaining", f"{remaining_quota}")
+
+st.markdown("<br>", unsafe_allow_html=True)
+
 # --- File Uploader Dropzone ---
 uploaded_file = st.file_uploader("📂 Drag & Drop your NavWise CSV dataset here", type=["csv"])
 
@@ -276,98 +319,109 @@ if uploaded_file is not None:
     reader = list(csv.DictReader(content))
     total_leads = len(reader)
     
-    st.success(f"File loaded successfully! Found **{total_leads}** leads to process.")
+    st.success(f"File loaded successfully! Found **{total_leads}** leads in your uploaded dataset.")
     
-    if st.button("🚀 Start Verification Process", type="primary", use_container_width=True):
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        time_text = st.empty()
-        log_box = st.empty()
+    # Validate against daily limit with the uploaded dataset size
+    is_allowed, current_usage, remaining_allowed = check_and_update_daily_limit(total_leads)
+    
+    if not is_allowed:
+        st.error(f"❌ **Daily Limit Reached:** You are attempting to process **{total_leads}** leads, but your remaining 24-hour quota is only **{remaining_allowed}** leads (Used: `{current_usage}/100`). Please upload a smaller batch or try again later.")
+    else:
+        st.info(f"✅ Quota check passed! You have sufficient daily capacity to process this batch (`{remaining_allowed}` quota slots remaining after this run).")
         
-        verified_leads = []
-        sl_no = 1
-        start_time = time.time()
-        
-        for idx, row in enumerate(reader):
-            first_name = row.get('First Name', '')
-            last_name = row.get('Last Name', '')
-            raw_website = row.get('Organisation Website', '')
-            domain = extract_domain(raw_website)
-            company_name = row.get('Organisation Name', '')
+        if st.button("🚀 Start Verification Process", type="primary", use_container_width=True):
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            time_text = st.empty()
+            log_box = st.empty()
             
-            elapsed_time = time.time() - start_time
-            if idx > 0:
-                avg_time_per_lead = elapsed_time / idx
-                remaining_leads = total_leads - idx
-                est_seconds_left = int(avg_time_per_lead * remaining_leads)
-                mins, secs = divmod(est_seconds_left, 60)
-                time_text.info(f"⏳ **Estimated Time Remaining:** {mins} min {secs} sec")
+            verified_leads = []
+            sl_no = 1
+            start_time = time.time()
+            
+            for idx, row in enumerate(reader):
+                first_name = row.get('First Name', '')
+                last_name = row.get('Last Name', '')
+                raw_website = row.get('Organisation Website', '')
+                domain = extract_domain(raw_website)
+                company_name = row.get('Organisation Name', '')
+                
+                elapsed_time = time.time() - start_time
+                if idx > 0:
+                    avg_time_per_lead = elapsed_time / idx
+                    remaining_leads = total_leads - idx
+                    est_seconds_left = int(avg_time_per_lead * remaining_leads)
+                    mins, secs = divmod(est_seconds_left, 60)
+                    time_text.info(f"⏳ **Estimated Time Remaining:** {mins} min {secs} sec")
+                else:
+                    time_text.info("⏳ **Estimated Time Remaining:** Calculating...")
+
+                if not domain:
+                    continue
+                    
+                permutations = generate_permutations(first_name, last_name, domain)
+                found_email = None
+                
+                for email in permutations:
+                    status_text.markdown(f"🔍 **Currently Testing:** `{email}`")
+                    
+                    status = verify_smtp_email(email)
+                    log_box.caption(f"Tested: `{email}` ➔ Result: **{status}**")
+                    
+                    if status == "Valid":
+                        found_email = email
+                        break
+                    elif status == "Greylisted":
+                        time.sleep(random.randint(5, 10))
+                    
+                    time.sleep(random.randint(3, 8))
+                    
+                if found_email:
+                    status_text.markdown(f"📞 **Searching Phone for:** `{first_name} {last_name}`")
+                    phone_number = find_exposed_phone_number(first_name, last_name, company_name, domain)
+                    
+                    lead_data = {
+                        'slno': sl_no,
+                        'firstname': str(first_name).strip(),
+                        'lastname': str(last_name).strip(),
+                        'current title': str(row.get('Current Title', '')).strip(),
+                        'organisation name': str(company_name).strip(),
+                        'organization website': domain,
+                        'location': str(row.get('Location', '')).strip(),
+                        'industry': str(row.get('Industry', '')).strip(),
+                        'email': found_email,
+                        'phone': phone_number
+                    }
+                    verified_leads.append(lead_data)
+                    sl_no += 1
+                    
+                progress_bar.progress((idx + 1) / total_leads)
+                time.sleep(random.uniform(2.0, 4.0)) # Human-like rate limit sleep
+
+            # Successfully completed run: Increment usage counter globally
+            increment_usage_counter(total_leads)
+
+            status_text.empty()
+            time_text.empty()
+            progress_bar.progress(1.0)
+            
+            if verified_leads:
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                output_filename = f"verified_lead_{timestamp}.xlsx"
+                
+                create_formatted_excel(verified_leads, output_filename)
+                
+                st.balloons()
+                st.success(f"🎉 Verification Complete! Successfully verified {len(verified_leads)} valid leads.")
+                
+                with open(output_filename, "rb") as file:
+                    st.download_button(
+                        label="📥 Download Verified Leads Excel",
+                        data=file,
+                        file_name=output_filename,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        type="primary",
+                        use_container_width=True
+                    )
             else:
-                time_text.info("⏳ **Estimated Time Remaining:** Calculating...")
-
-            if not domain:
-                continue
-                
-            permutations = generate_permutations(first_name, last_name, domain)
-            found_email = None
-            
-            for email in permutations:
-                status_text.markdown(f"🔍 **Currently Testing:** `{email}`")
-                
-                status = verify_smtp_email(email)
-                log_box.caption(f"Tested: `{email}` ➔ Result: **{status}**")
-                
-                if status == "Valid":
-                    found_email = email
-                    break
-                elif status == "Greylisted":
-                    time.sleep(random.randint(5, 10))
-                
-                time.sleep(random.randint(3, 8))
-                
-            if found_email:
-                status_text.markdown(f"📞 **Searching Phone for:** `{first_name} {last_name}`")
-                phone_number = find_exposed_phone_number(first_name, last_name, company_name, domain)
-                
-                lead_data = {
-                    'slno': sl_no,
-                    'firstname': str(first_name).strip(),
-                    'lastname': str(last_name).strip(),
-                    'current title': str(row.get('Current Title', '')).strip(),
-                    'organisation name': str(company_name).strip(),
-                    'organization website': domain,
-                    'location': str(row.get('Location', '')).strip(),
-                    'industry': str(row.get('Industry', '')).strip(),
-                    'email': found_email,
-                    'phone': phone_number
-                }
-                verified_leads.append(lead_data)
-                sl_no += 1
-                
-            progress_bar.progress((idx + 1) / total_leads)
-            time.sleep(random.randint(2, 5))
-
-        status_text.empty()
-        time_text.empty()
-        progress_bar.progress(1.0)
-        
-        if verified_leads:
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_filename = f"verified_lead_{timestamp}.xlsx"
-            
-            create_formatted_excel(verified_leads, output_filename)
-            
-            st.balloons()
-            st.success(f"🎉 Verification Complete! Successfully verified {len(verified_leads)} valid leads.")
-            
-            with open(output_filename, "rb") as file:
-                st.download_button(
-                    label="📥 Download Verified Leads Excel",
-                    data=file,
-                    file_name=output_filename,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    type="primary",
-                    use_container_width=True
-                )
-        else:
-            st.warning("No valid emails could be verified from the uploaded dataset.")
+                st.warning("No valid emails could be verified from the uploaded dataset.")

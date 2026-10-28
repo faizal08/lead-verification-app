@@ -14,6 +14,9 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 import streamlit as st
 
+# File to persist global usage counter across app restarts (prevents quota bypass via page refreshes)
+LIMIT_TRACKER_FILE = "daily_usage_tracker.txt"
+
 
 def get_base64_of_bin_file(bin_file):
     """Converts a local binary file (like an image) into a Base64 string."""
@@ -102,6 +105,10 @@ def find_exposed_phone_number(first_name, last_name, company_name, domain=""):
         url = f"https://www.googleapis.com/customsearch/v1?q={query}&key={api_key}&cx={cx}"
         try:
             response = requests.get(url, timeout=5).json()
+            
+            # Rate limiting / Sleep timer to mimic human browsing speed and avoid API throttles
+            time.sleep(random.uniform(2.0, 4.0))
+            
             for item in response.get('items', []):
                 snippet = item.get('snippet', '')
                 snippet_lower = snippet.lower()
@@ -122,9 +129,73 @@ def find_exposed_phone_number(first_name, last_name, company_name, domain=""):
                     if valid_numbers:
                         return valid_numbers[0]
         except Exception:
+            # Also sleep briefly on exception to avoid rapid retry looping
+            time.sleep(random.uniform(1.0, 2.0))
             continue
             
     return "Not Exposed"
+
+
+def check_and_update_daily_limit(leads_to_process_count):
+    """
+    Checks if processing the requested number of leads exceeds the 100-lead 24-hour limit.
+    Tracks usage globally using a persistent timestamped file.
+    """
+    now = datetime.datetime.now()
+    daily_limit = 100
+    
+    current_count = 0
+    last_reset_time = now
+    
+    # Read existing tracking data
+    if os.path.exists(LIMIT_TRACKER_FILE):
+        try:
+            with open(LIMIT_TRACKER_FILE, "r") as f:
+                lines = f.read().splitlines()
+                if len(lines) >= 2:
+                    last_reset_time = datetime.datetime.fromisoformat(lines[0])
+                    current_count = int(lines[1])
+        except Exception:
+            pass
+            
+    # Check if 24 hours have passed since the last reset
+    if now - last_reset_time > datetime.timedelta(hours=24):
+        current_count = 0
+        last_reset_time = now
+        
+    # Check if adding new leads exceeds the 100-lead cap
+    if current_count + leads_to_process_count > daily_limit:
+        remaining_allowed = max(0, daily_limit - current_count)
+        return False, current_count, remaining_allowed
+        
+    return True, current_count, daily_limit - current_count
+
+
+def increment_usage_counter(processed_count):
+    """Updates the global usage counter file after processing successfully completes."""
+    now = datetime.datetime.now()
+    current_count = 0
+    last_reset_time = now
+    
+    if os.path.exists(LIMIT_TRACKER_FILE):
+        try:
+            with open(LIMIT_TRACKER_FILE, "r") as f:
+                lines = f.read().splitlines()
+                if len(lines) >= 2:
+                    last_reset_time = datetime.datetime.fromisoformat(lines[0])
+                    current_count = int(lines[1])
+        except Exception:
+            pass
+            
+    # Reset if 24 hours have passed
+    if now - last_reset_time > datetime.timedelta(hours=24):
+        current_count = 0
+        last_reset_time = now
+        
+    new_total = current_count + processed_count
+    
+    with open(LIMIT_TRACKER_FILE, "w") as f:
+        f.write(f"{last_reset_time.isoformat()}\n{new_total}")
 
 
 def create_formatted_excel(verified_leads, output_path):
