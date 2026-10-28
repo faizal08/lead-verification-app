@@ -1,18 +1,19 @@
 import os
-import random
-import time
 import csv
+import time
+import random
 import datetime
-import base64
-import re
-import requests
-import dns.resolver
-import smtplib
-from urllib.parse import urlparse
-import openpyxl
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from openpyxl.utils import get_column_letter
 import streamlit as st
+
+# Import backend & UI helper functions from utils.py
+from utils import (
+    get_base64_of_bin_file,
+    extract_domain,
+    generate_permutations,
+    verify_smtp_email,
+    find_exposed_phone_number,
+    create_formatted_excel
+)
 
 # Page configuration
 st.set_page_config(
@@ -20,12 +21,6 @@ st.set_page_config(
     page_icon="⚡",
     layout="wide"
 )
-
-# Function to convert image file to base64 string
-def get_base64_of_bin_file(bin_file):
-    with open(bin_file, 'rb') as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
 
 # Set background wallpaper if file exists
 bg_file = "email_verification_wallpaper.png"
@@ -47,9 +42,10 @@ if os.path.exists(bg_file):
 # Custom High-End Modern CSS
 st.markdown("""
     <style>
-    /* Hide default Streamlit top header bar/menu to prevent overlapping */
+    /* Ensure top header allows clicks */
     header[data-testid="stHeader"] {
         background: transparent !important;
+        z-index: 99998 !important;
     }
 
     /* Adjust main container padding */
@@ -57,6 +53,34 @@ st.markdown("""
         padding-top: 1.5rem !important;
         padding-bottom: 3rem !important;
         max-width: 1400px !important;
+    }
+
+    /* Fixed & Clickable NavWise Link positioned safely to the left of the Deploy button */
+    .navwise-top-link {
+        position: fixed;
+        top: 12px;
+        right: 180px; /* Moved further left to create clear spacing from Deploy */
+        background: linear-gradient(135deg, #0ea5e9, #0284c7);
+        color: white !important;
+        padding: 7px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 700;
+        text-decoration: none !important;
+        box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4);
+        z-index: 999999 !important; /* Ensure it stays above Streamlit headers */
+        pointer-events: auto !important; /* Enables mouse click interaction */
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s ease-in-out;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+    }
+    .navwise-top-link:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(14, 165, 233, 0.6);
+        background: linear-gradient(135deg, #0284c7, #0369a1);
+        color: white !important;
     }
 
     /* Top-Left EIT Header Bar */
@@ -152,7 +176,7 @@ st.markdown("""
         text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
     }
 
-    /* MASSIVE & Fully Transparent File Uploader Dropzone */
+    /* Transparent File Uploader Dropzone */
     [data-testid="stFileUploader"] {
         background: rgba(0, 0, 0, 0.0) !important;
         backdrop-filter: blur(4px) !important;
@@ -167,7 +191,6 @@ st.markdown("""
         box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4) !important;
     }
     
-    /* Force absolute transparency on all inner Streamlit uploader elements */
     [data-testid="stFileUploader"] section, 
     [data-testid="stFileUploader"] div, 
     [data-testid="stFileUploadDropzone"],
@@ -183,7 +206,6 @@ st.markdown("""
         box-shadow: 0 0 40px rgba(56, 189, 248, 0.3) !important;
     }
     
-    /* Center and style the dropzone instruction text */
     [data-testid="stFileUploader"] label {
         color: #f8fafc !important;
         font-size: 23px !important;
@@ -213,151 +235,12 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Helper Functions
-def extract_domain(url):
-    """Extracts clean domain from organisation website URL."""
-    if not url or str(url).strip() == '' or str(url).lower() == 'nan':
-        return ""
-    parsed = urlparse(str(url))
-    domain = parsed.netloc if parsed.netloc else parsed.path
-    domain = domain.split('/')[0]
-    if domain.startswith('www.'):
-        domain = domain[4:]
-    return domain.strip().lower()
-
-def generate_permutations(first_name, last_name, domain):
-    """Generates corporate email permutations."""
-    f = str(first_name).strip().lower()
-    l = str(last_name).strip().lower()
-    d = str(domain).strip().lower()
-    
-    if not f or not l or not d or f == 'nan' or l == 'nan' or d == 'nan':
-        return []
-    
-    f = ''.join(e for e in f if e.isalnum())
-    l = ''.join(e for e in l if e.isalnum())
-    
-    if not f or not l:
-        return []
-        
-    return [
-        f"{f}.{l}@{d}",    # firstname.lastname@company.com
-        f"{f[0]}{l}@{d}",  # flastname@company.com
-        f"{f}@{d}"         # firstname@company.com
-    ]
-
-def verify_smtp_email(email, sender_email="verify@gmail.com"):
-    """Pings mail server via SMTP with MX record lookup."""
-    try:
-        domain = email.split('@')[1]
-        records = dns.resolver.resolve(domain, 'MX')
-        mx_record = str(records[0].exchange)
-        
-        server = smtplib.SMTP(timeout=10)
-        server.connect(mx_record)
-        server.helo('verification.local')
-        server.mail(sender_email)
-        code, message = server.rcpt(email)
-        server.quit()
-        
-        if code == 250:
-            return "Valid"
-        elif 400 <= code < 500:
-            return "Greylisted"
-        else:
-            return "Invalid"
-    except Exception:
-        return "Failed/Blocked"
-
-def find_exposed_phone_number(first_name, last_name, company_name, domain=""):
-    """
-    Searches Google for personal direct phone lines using targeted queries
-    and filters out generic company HQ/switchboard lines.
-    """
-    # Securely fetch credentials from Streamlit secrets
-    api_key = st.secrets.get("GOOGLE_API_KEY", "")
-    cx = st.secrets.get("SEARCH_ENGINE_ID", "")
-    
-    if not api_key or not cx:
-        return "Not Configured"
-
-    # ... rest of your search logic starts here ...
-
-    queries = [
-        f'"{first_name} {last_name}" "{company_name}" filetype:pdf (phone OR mobile)',
-        f'site:github.com "{first_name} {last_name}" (phone OR mobile OR "cell")',
-        f'"{first_name} {last_name}" "{company_name}" ("speaker" OR "press release") (phone OR contact)',
-        f'"{first_name} {last_name}" "{company_name}" (phone OR mobile OR contact)'  # <--- Broader general web search
-    ]
-    
-    for query in queries:
-        url = f"https://www.googleapis.com/customsearch/v1?q={query}&key={api_key}&cx={cx}"
-        try:
-            response = requests.get(url, timeout=5).json()
-            for item in response.get('items', []):
-                snippet = item.get('snippet', '')
-                snippet_lower = snippet.lower()
-                link = item.get('link', '').lower()
-                
-                # Filter out general company contact/HQ pages to avoid false switchboard numbers
-                if any(term in link for term in ['/contact', '/about', '/hq', '/support']):
-                    continue
-                
-                full_name = f"{first_name} {last_name}".lower()
-                company = str(company_name).lower()
-                
-                # Context safeguard: ensure snippet explicitly mentions target lead and company
-                if full_name in snippet_lower and (company in snippet_lower or domain.lower() in snippet_lower):
-                    matches = re.findall(r'(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}', snippet)
-                    valid_numbers = [m.strip() for m in matches if len(re.sub(r'\D', '', m)) >= 10]
-                    
-                    if valid_numbers:
-                        return valid_numbers[0]
-        except Exception:
-            continue
-            
-    return "Not Exposed"
-
-def create_formatted_excel(verified_leads, output_path):
-    """Saves verified leads into a beautifully styled Excel sheet."""
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Verified Leads"
-    
-    headers = list(verified_leads[0].keys())
-    ws.append(headers)
-    
-    for lead in verified_leads:
-        ws.append([lead[h] for h in headers])
-        
-    header_fill = PatternFill(start_color="2E7D32", end_color="2E7D32", fill_type="solid")
-    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-    data_font = Font(name="Calibri", size=11, color="000000")
-    thin_border = Border(left=Side(style='thin', color='D3D3D3'),
-                         right=Side(style='thin', color='D3D3D3'),
-                         top=Side(style='thin', color='D3D3D3'),
-                         bottom=Side(style='thin', color='D3D3D3'))
-                         
-    for col_num in range(1, len(headers) + 1):
-        cell = ws.cell(row=1, column=col_num)
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = thin_border
-        
-    for row_num in range(2, ws.max_row + 1):
-        for col_num in range(1, len(headers) + 1):
-            cell = ws.cell(row=row_num, column=col_num)
-            cell.font = data_font
-            cell.border = thin_border
-            cell.alignment = Alignment(horizontal="left", vertical="center")
-            
-    for col in ws.columns:
-        max_len = max(len(str(cell.value or '')) for cell in col)
-        col_letter = get_column_letter(col[0].column)
-        ws.column_dimensions[col_letter].width = max(max_len + 5, 16)
-        
-    wb.save(output_path)
+# --- Top NavWise Link (Spaced to the left of Deploy and Clickable) ---
+st.markdown("""
+    <a href="https://navwise.ai/navwise" target="_blank" class="navwise-top-link">
+        🌐 NavWise Export
+    </a>
+""", unsafe_allow_html=True)
 
 # --- Top-Left EIT Header Bar ---
 st.markdown("""
@@ -385,7 +268,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# --- Massive & Fully Transparent File Uploader Dropzone ---
+# --- File Uploader Dropzone ---
 uploaded_file = st.file_uploader("📂 Drag & Drop your NavWise CSV dataset here", type=["csv"])
 
 if uploaded_file is not None:
@@ -444,7 +327,6 @@ if uploaded_file is not None:
                 
             if found_email:
                 status_text.markdown(f"📞 **Searching Phone for:** `{first_name} {last_name}`")
-                # Attempt to extract direct contact phone number
                 phone_number = find_exposed_phone_number(first_name, last_name, company_name, domain)
                 
                 lead_data = {
@@ -457,7 +339,7 @@ if uploaded_file is not None:
                     'location': str(row.get('Location', '')).strip(),
                     'industry': str(row.get('Industry', '')).strip(),
                     'email': found_email,
-                    'phone': phone_number  # <--- Appends phone column to Excel output
+                    'phone': phone_number
                 }
                 verified_leads.append(lead_data)
                 sl_no += 1
